@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 flex flex-col">
+    <h1 class="text-2xl font-bold py-4">Chat</h1>
+
+    <!-- Chat messages container with flex-grow and flex-col-reverse -->
+    <div class="flex-grow flex flex-col">
+    <div id="chatlist" class="chat-box h-[70vh] overflow-y-auto">
+        {% for message in chat.messages|reverse %}
+ <div class="chat {% if message.role == 'user' %}chat-end{% else %}chat-start{% endif %} mb-4">
+            <div class="chat-image avatar">
+                <div class="w-10 rounded-full">
+                    {% if message.role == 'user' %}
+                    <img alt="User avatar" src="https://picsum.photos/200/200?user" />
+                    {% else %}
+                    <img alt="Assistant avatar" src="https://picsum.photos/200/200?assistant" />
+                    {% endif %}
+                </div>
+            </div>
+            <div class="chat-header">
+                {{ message.role|title }}
+            </div>
+            <div class="chat-bubble {% if message.role == 'user' %}chat-bubble-primary{% else %}chat-bubble-accent{% endif %}">
+                {{ message.content }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+    <!-- Fixed chat input form at bottom -->
+    <div class="py-4">
+        <form id="chat-form" hx-post="/chat/{{ chat.id }}/message" hx-target="#chatlist" hx-swap="beforeend" 
+            class="flex w-full gap-2">
+            <input id="msg-input" type="text" name="message" hx-swap-oob='true' placeholder="Type your message..." autocomplete="off"
+                class="input input-bordered flex-1" />
+            <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

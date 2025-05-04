@@ -1,0 +1,26 @@
+<div class="chat chat-end mb-4">
+    <div class="chat-image avatar">
+        <div class="w-10 rounded-full">
+            <img alt="User avatar" src="https://picsum.photos/200/200?user" />
+        </div>
+    </div>
+    <div class="chat-header">
+        User
+    </div>
+    <div class="chat-bubble chat-bubble-primary">{{ message }}</div>
+</div>
+<div class="chat chat-start mb-4">
+    <div class="chat-image avatar">
+        <div class="w-10 rounded-full">
+            <img alt="Assistant avatar" src="https://picsum.photos/200/200?assistant" />
+        </div>
+    </div>
+    <div class="chat-header">
+        Assistant
+    </div>
+    <div class="chat-bubble chat-bubble-accent">Generating . . .</div>
+</div>
+
+<!-- Clear chat input -->
+<input id="msg-input" type="text" name="message" hx-swap-oob='true' placeholder="Type your message..." autocomplete="off"
+    class="input input-bordered flex-1" />

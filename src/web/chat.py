@@ -20,13 +20,3 @@ async def chat(chat_id: str, request: Request):
     ]
     chat = {"id": chat_id, "messages": messages}
     return templates.TemplateResponse("chat.html", {"request": request, "chat": chat})
-
-
-@router.post("/{chat_id}/message", response_class=HTMLResponse)
-async def send_message(chat_id: str, request: Request):
-    form = await request.form()
-    user_message = form.get("message")
-    return templates.TemplateResponse(
-        "partials/chat_bubble.html",
-        {"request": request, "message": user_message},
-    )

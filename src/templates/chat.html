@@ -1,42 +1,106 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mx-auto px-4 flex flex-col">
+<div class="container mx-auto px-4 flex flex-col" x-data="chatComponent('{{ chat.id }}')">
     <h1 class="text-2xl font-bold py-4">Chat</h1>
 
     <!-- Chat messages container with flex-grow and flex-col-reverse -->
     <div class="flex-grow flex flex-col">
     <div id="chatlist" class="chat-box h-[70vh] overflow-y-auto">
-        {% for message in chat.messages|reverse %}
- <div class="chat {% if message.role == 'user' %}chat-end{% else %}chat-start{% endif %} mb-4">
-            <div class="chat-image avatar">
-                <div class="w-10 rounded-full">
-                    {% if message.role == 'user' %}
-                    <img alt="User avatar" src="https://picsum.photos/200/200?user" />
-                    {% else %}
-                    <img alt="Assistant avatar" src="https://picsum.photos/200/200?assistant" />
-                    {% endif %}
+        <template x-for="message in messages" :key="message.id">
+            <div class="chat" :class="message.role === 'user' ? 'chat-end' : 'chat-start'">
+                <div class="chat-image avatar">
+                    <div class="w-10 rounded-full">
+                        <img :alt="message.role === 'user' ? 'User avatar' : 'Assistant avatar'" :src="message.role === 'user' ? 'https://i.pravatar.cc/100?img=7' : 'https://cdn.icon-icons.com/icons2/1371/PNG/512/robot02_90810.png'" />
+                    </div>
+                </div>
+                <div class="chat-header" x-text="message.role.charAt(0).toUpperCase() + message.role.slice(1)"></div>
+                <div class="chat-bubble" :class="message.role === 'user' ? 'chat-bubble-primary' : 'chat-bubble-accent'">
+                    <span x-text="message.content"></span>
                 </div>
             </div>
-            <div class="chat-header">
-                {{ message.role|title }}
-            </div>
-            <div class="chat-bubble {% if message.role == 'user' %}chat-bubble-primary{% else %}chat-bubble-accent{% endif %}">
-                {{ message.content }}
-            </div>
-        </div>
-        {% endfor %}
+        </template>
     </div>
 </div>
 
     <!-- Fixed chat input form at bottom -->
     <div class="py-4">
-        <form id="chat-form" hx-post="/chat/{{ chat.id }}/message" hx-target="#chatlist" hx-swap="beforeend" 
-            class="flex w-full gap-2">
-            <input id="msg-input" type="text" name="message" hx-swap-oob='true' placeholder="Type your message..." autocomplete="off"
-                class="input input-bordered flex-1" />
-            <button type="submit" class="btn btn-primary">Send</button>
+        <form id="chat-form" @submit.prevent="sendMessage" class="flex w-full gap-2">
+            <input id="msg-input" type="text" name="message" placeholder="Type your message..." autocomplete="off"
+                class="input input-bordered flex-1" x-model="input" :disabled="loading" />
+            <button type="submit" class="btn btn-primary" :disabled="loading || !input.trim()">Send</button>
         </form>
     </div>
 </div>
+
+<script>
+function chatComponent(chatId) {
+    return {
+        input: '',
+        loading: false,
+        messages: [
+            // Initial messages from backend
+            ...JSON.parse('{{ chat.messages|tojson|safe }}').reverse()
+        ],
+        sendMessage() {
+            if (!this.input.trim()) return;
+            const userMsg = {
+                id: Date.now() + Math.random(),
+                role: 'user',
+                content: this.input
+            };
+            this.messages.push(userMsg);
+            this.loading = true;
+            const userInput = this.input;
+            this.input = '';
+
+            // Scroll to bottom
+            this.$nextTick(() => {
+                const chatlist = document.getElementById('chatlist');
+                chatlist.scrollTop = chatlist.scrollHeight;
+            });
+            
+            // Add assistant placeholder
+            const assistantMsg = {
+                id: Date.now() + Math.random(),
+                role: 'assistant',
+                content: 'Generating response...'
+            };
+            this.messages.push(assistantMsg);
+            
+            // Stream response
+            fetch(`/api/chat/${chatId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ msg: userInput })
+            }).then(async (res) => {
+                if (!res.body || !window.ReadableStream) {
+                    this.loading = false;
+                    return;
+                }
+                const reader = res.body.getReader();
+                let decoder = new TextDecoder();
+                let done = false;
+                assistantMsg.content = '';
+                while (!done) {
+                    const { value, done: doneReading } = await reader.read();
+                    done = doneReading;
+                    if (value) {
+                        assistantMsg.content += decoder.decode(value, { stream: !done });
+                        this.messages.splice(this.messages.length - 1, 1, { ...assistantMsg });
+                        this.$nextTick(() => {
+                            const chatlist = document.getElementById('chatlist');
+                            chatlist.scrollTop = chatlist.scrollHeight;
+                        });
+                    }
+                }
+                this.loading = false;
+            }).catch(() => {
+                assistantMsg.content += '\n[Error receiving response]';
+                this.loading = false;
+            });
+        }
+    }
+}
+</script>
 {% endblock %}

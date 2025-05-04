@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from src.core.client import openai_client
 from src.core.config import settings
@@ -7,9 +8,15 @@ from src.core.config import settings
 router = APIRouter()
 
 
-@router.post("/chat/{chat_id}")
-async def chat_with_openai(chat_id: str, msg: str):
-    async def stream_response():
+class ChatRequest(BaseModel):
+    msg: str
+
+
+@router.post("/{chat_id}")
+def chat_with_openai(chat_id: str, body: ChatRequest = Body(...)):
+    msg = body.msg
+
+    def stream_response():
         response = openai_client.chat.completions.create(
             model=settings.LLM_MODEL,
             messages=[{"role": "user", "content": msg}],
@@ -22,6 +29,6 @@ async def chat_with_openai(chat_id: str, msg: str):
         for chunk in response:
             content = chunk.choices[0].delta.content
             if content:
-                yield f"data: {content}\n\n"
+                yield content
 
-    return StreamingResponse(stream_response(), media_type="text/event-stream")
+    return StreamingResponse(stream_response(), media_type="text/plain")

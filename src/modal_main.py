@@ -1,9 +1,13 @@
+import os
 from pathlib import Path
 
 import modal
 import tomli
+from dotenv import find_dotenv, load_dotenv
 
 from src.main import app as web_app
+
+load_dotenv(find_dotenv())
 
 
 def get_dependencies():
@@ -19,7 +23,16 @@ def get_dependencies():
         return ["fastapi[standard]"]  # Fallback to minimum required
 
 
-image = modal.Image.debian_slim().pip_install(*get_dependencies())
+image = (
+    modal.Image.debian_slim()
+    .pip_install(*get_dependencies())
+    .env(
+        {
+            "SUPABASE_URL": os.getenv("SUPABASE_URL"),
+            "SUPABASE_ANON_KEY": os.getenv("SUPABASE_ANON_KEY"),
+        }
+    )
+)
 
 app = modal.App("LlamaBuddy", image=image)
 

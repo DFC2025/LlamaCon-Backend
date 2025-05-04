@@ -1,12 +1,8 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-print("Loading settings from .env file...")
-# Get the root directory of the project
-root_dir = Path(__file__).resolve().parent.parent.parent
-print(f"Root directory: {root_dir}")
 
 
 class Settings(BaseSettings):
@@ -19,8 +15,8 @@ class Settings(BaseSettings):
     app_name: str = "LlamaBuddy"
     api_str: str = "/api"
     debug: bool = False
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL")
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY")
 
 
 @lru_cache()

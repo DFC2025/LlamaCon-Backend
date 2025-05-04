@@ -7,7 +7,7 @@
     <!-- Chat messages container with flex-grow and flex-col-reverse -->
     <div class="flex-grow flex flex-col">
     <div id="chatlist" class="chat-box h-[70vh] overflow-y-auto">
-        <template x-for="message in messages" :key="message.id">
+        <template x-for="message in messages">
             <div class="chat" :class="message.role === 'user' ? 'chat-end' : 'chat-start'">
                 <div class="chat-image avatar">
                     <div class="w-10 rounded-full">

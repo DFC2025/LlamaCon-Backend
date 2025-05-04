@@ -1,7 +1,8 @@
 from src.core.db_client import supabase_client
 import json
 
-
+MODAL_URL="https://rajuptvs--search-bar-search.modal.run"
+PODCAST_CREATE_URL = "https://rajuptvs--podcast-functions-create-podcast-dev.modal.run" 
 def get_domain(url:str):
     return url.split("/")[2]
 

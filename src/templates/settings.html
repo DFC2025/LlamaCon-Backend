@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex justify-center items-center min-h-[60vh]">
+    <div class="card w-full max-w-lg bg-base-100 shadow-xl p-8">
+        <h2 class="text-2xl font-bold mb-4">Podcast Settings</h2>
+        <form method="post" class="space-y-4">
+            <div>
+                <label class="block font-semibold mb-1" for="name">Podcast Name</label>
+                <input type="text" id="name" name="name" class="input input-bordered w-full" value="{{ default_name }}" required {% if feed_url %}readonly{% endif %}/>
+            </div>
+            <div>
+                <label class="block font-semibold mb-1" for="description">Description</label>
+                <textarea id="description" name="description" class="textarea textarea-bordered w-full" required {% if feed_url %}readonly{% endif %}>{{ default_description }}</textarea>
+            </div>
+            <div>
+                <label class="block font-semibold mb-1" for="schedule">Podcast Schedule</label>
+                <select id="schedule" name="schedule" class="select select-bordered w-full" required>
+                    <option value="daily" {% if schedule == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="3days" {% if schedule == '3days' %}selected{% endif %}>Every 3 days</option>
+                    <option value="5days" {% if schedule == '5days' %}selected{% endif %}>Every 5 days</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold mb-1" for="articles_per_digest">Articles per Digest</label>
+                <input type="number" id="articles_per_digest" name="articles_per_digest" class="input input-bordered w-full" min="1" max="20" value="{{ articles_per_digest or 5 }}" required />
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Save Settings</button>
+        </form>
+        {% if feed_url %}
+        <div class="mt-8">
+            <label class="block font-semibold mb-1">Your Podcast RSS Feed URL:</label>
+            <div class="flex items-center gap-2">
+                <input id="feedUrl" type="text" class="input input-bordered w-full" value="{{ feed_url }}" readonly />
+                <button class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('feedUrl').value)">Copy</button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

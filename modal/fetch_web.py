@@ -1,0 +1,299 @@
+import asyncio
+import json
+import os
+from crawl4ai import (
+    AsyncWebCrawler,
+    BrowserConfig,
+    CrawlerRunConfig,
+    DefaultMarkdownGenerator,
+    CacheMode,
+    PruningContentFilter,
+)
+
+from bucket_functions import upload_to_bucket,client
+from openai import OpenAI
+from fastapi import Request
+import nest_asyncio
+import modal
+from modal_setup import image
+from typing import Union, List, Dict, Any
+from typing import Union, List
+
+import logging
+import traceback
+from functools import wraps
+import time
+import textwrap
+from prompts import SUMMARY_AND_TAG_PROMPT,TRANSLATE_PROMPT
+# Set up logging
+from google import genai
+logger = logging.getLogger("rerun_scraper")
+logger.setLevel(logging.INFO)
+
+
+app = modal.App(image=image,name="fetch_web")
+
+
+def get_base_url(url):
+    """Extract base domain from URL"""
+    return url.split("/")[2]
+
+def get_link_type(link):
+    if link is None:
+        return "pass"
+    base_url = get_base_url(link)
+    if "x.com" in base_url:
+        return "twitter"
+    elif "youtube.com" in base_url:
+        return "youtube"
+    elif "arxiv.org" in base_url:
+        return "arxiv"
+    elif "github.com" in base_url:
+        return "github"
+    else:
+        return "website"
+
+
+
+async def scrape_website(urls: Union[List[str], str]):
+    """Scrape a website and return the markdown"""
+         
+    prune_filter = PruningContentFilter(
+        threshold=0.35,
+        threshold_type="dynamic",
+        min_word_threshold=5,
+    )
+
+    md_generator = DefaultMarkdownGenerator(content_filter=prune_filter)
+
+    browser_config = BrowserConfig(headless=True)
+    run_config = CrawlerRunConfig(
+        screenshot=True, cache_mode=CacheMode.BYPASS, markdown_generator=md_generator
+    )
+
+    if isinstance(urls, str):
+        urls = [urls]
+
+    results = []
+    async with AsyncWebCrawler(config=browser_config) as crawler:
+        for url in urls:
+            try:
+                result = await crawler.arun(url=url, config=run_config)
+                results.append(result)
+            except Exception as e:
+                print(f"Error crawling {url}: {e}")
+                results.append(None)
+    return results
+
+
+def get_response(query,prompt):
+        print("running llama4")
+        client=OpenAI(
+            api_key=os.environ.get("LLAMA_API_KEY"),
+            base_url="https://api.llama.com/compat/v1/"
+        )
+        response=client.chat.completions.create(
+            model="Llama-4-Maverick-17B-128E-Instruct-FP8",
+            messages=[{"role":"system","content":prompt},{"role":"user","content":query}]
+        )
+        return response.choices[0].message.content
+
+def get_summary_and_tags(content:str):
+    try:
+        
+        response=get_response(content,SUMMARY_AND_TAG_PROMPT)
+        print("Raw response from Llama:", response)
+        response=response.replace("```json","")
+        response=response.replace("```","")
+        response=json.loads(response)
+        return response
+    except Exception as e:
+        print(f"Error getting summary and tags: {e}")
+        return None
+    
+def get_embeddings(content:str,model="gemini-embedding-exp-03-07"):
+    gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    result = gemini_client.models.embed_content(
+        model=model,
+        contents=content)
+    return result.embeddings
+
+def insert_summary_into_embeddings(summary_dict: dict, content_id: str, table_name: str = "documents"):
+    """
+    Insert summary data into the embeddings table
+    
+    Args:
+        summary_dict: Dictionary containing id and summary data
+        content_id: ID of the content to insert into
+        table_name: Name of the table to insert into (default: embeddings)
+    """
+    try:
+        summary_text=summary_dict.get('summary', '')
+        tags=summary_dict.get('tags', [])
+        data = {
+                    'content': summary_text,
+                    'content_id': content_id,
+                    'tags':tags,
+                    'embedding': get_embeddings(summary_text,model='models/text-embedding-004')[0].values
+                }
+        result = client.table(table_name).insert(data).execute()
+        print(f"Successfully inserted summary for content_id: {content_id}")
+        return True
+    except Exception as e:
+        print(f"Error inserting summary for content_id {content_id}: {str(e)}")
+        return False
+    # for content_id, summary_data in summary_dict.items():
+    #     try:
+    #         # Extract summary text from the data
+    #         summary_text = summary_data.get('summary', '')
+            
+    #         # Prepare the data for insertion
+    #         data = {
+    #             'content': summary_text,
+    #             'content_id': content_id,
+    #             'embedding': get_embeddings(summary_text)[0].values
+    #             # Note: fts will be automatically generated by the database trigger
+    #             # Note: embedding will be NULL initially and can be updated later if needed
+    #         }
+            
+            # Insert the data
+        
+
+
+    
+    
+def generate_text(data):
+    """
+    Generate cleaned markdown content using Gemini API
+    """
+    try:
+        from google import genai
+        PROMPT=f"""please provide me a cleaned markdown with main content and just relavant links and content related links ..
+        and any links related to the author leave them in
+
+        {data}
+        """
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[PROMPT]
+        )
+        return True, response.text
+    except Exception as e:
+        error_message = f"Error generating text: {str(e)}"
+        print(error_message)
+        return False, error_message
+
+# Decorator for function timing and logging
+def log_execution(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        start_time = time.time()
+        logger.info(f"Starting {func.__name__} with args: {kwargs}")
+        try:
+            result = await func(*args, **kwargs)
+            execution_time = time.time() - start_time
+            logger.info(f"Completed {func.__name__} in {execution_time:.2f}s")
+            return result
+        except Exception as e:
+            execution_time = time.time() - start_time
+            logger.error(f"Failed {func.__name__} after {execution_time:.2f}s: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise
+    return wrapper
+
+def preview_content(content, char_limit=200):
+    """Returns a preview of the content, truncated to char_limit characters"""
+    if not content:
+        return "[EMPTY CONTENT]"
+    
+    preview = content[:char_limit]
+    # Replace newlines with spaces for cleaner logging
+    preview = preview.replace('\n', ' ').replace('\r', '')
+    if len(content) > char_limit:
+        preview += "..."
+    return preview
+
+
+
+
+@app.function()
+@modal.fastapi_endpoint(method="POST")
+async def fetch_and_dump(request: Request):
+    # Get the raw payload from the request
+    payload_bytes = await request.body()
+    payload = json.loads(payload_bytes)
+    print(payload)
+    url = payload['record']['url']
+    id = payload['record']['id']
+    link_type = get_link_type(url)
+    if link_type == "website":
+        result = await scrape_website(url)
+        markdown=result[0].markdown
+        upload_to_bucket('content', id, markdown,'raw_markdown.md')
+        generation_success,cleaned_markdown=generate_text(markdown)
+        if generation_success:
+            upload_to_bucket('content', id, cleaned_markdown,'cleaned_markdown.md')
+            print("executings")
+            clean_status={"id":id,
+            "raw_markdown":True,
+            "clean_markdown":True}
+            client.table('content_info').insert(clean_status).execute()
+        else:
+            print({"error": "Failed to generate cleaned markdown", "url": url})
+        
+        summary_and_tags=get_summary_and_tags(cleaned_markdown)
+        if summary_and_tags:
+            tag_status=insert_summary_into_embeddings(summary_and_tags,id)
+            print(tag_status)
+            if not tag_status:
+                print({"error": "Failed to insert summary into embeddings", "url": url,"id":id})
+        if link_type == "github":
+            # get the content from the github repo
+            # content = get_github_content(url)
+            # return content
+            return "github"
+        return result
+        # Print the structure of result to debug
+        # print(f"Result structure: {type(result)}")
+        # if result and len(result) > 0:
+        #     # Check if result[0] is not None before processing
+        #     if result[0] is not None:
+        #         markdown = get_raw_markdown(result)
+        #         upload_to_bucket('rawdata', id, markdown)
+        #         return result
+        #     else:
+        #         return {"error": "Failed to scrape website", "url": url}
+        # else:
+        #     return {"error": "Empty result from scraper", "url": url}
+    else:
+        return link_type
+    
+    
+
+
+@app.function()
+@modal.fastapi_endpoint(method="POST")
+async def translate_content(content:str):
+    translated_content = get_response(content,TRANSLATE_PROMPT)
+    return translated_content
+
+
+   
+        # Print the structure of result to debug
+        # print(f"Result structure: {type(result)}")
+        # if result and len(result) > 0:
+        #     # Check if result[0] is not None before processing
+        #     if result[0] is not None:
+        #         markdown = get_raw_markdown(result)
+        #         upload_to_bucket('rawdata', id, markdown)
+        #         return result
+        #     else:
+        #         return {"error": "Failed to scrape website", "url": url}
+        # else:
+        #     return {"error": "Empty result from scraper", "url": url}
+
+    
+    
+

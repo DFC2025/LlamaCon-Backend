@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -10,6 +12,15 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     msg: str
+
+
+@router.get("/new")
+def get_new_chat_id(supabase_client: DBClientDep):
+    chat_id = str(uuid.uuid4())
+    supabase_client.table("chat_history").insert(
+        {"id": chat_id, "messages": []}
+    ).execute()
+    return {"chat_id": chat_id}
 
 
 @router.post("/{chat_id}")

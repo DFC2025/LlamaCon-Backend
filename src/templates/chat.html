@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mx-auto px-4 flex flex-col" x-data="chatComponent('{{ chat.id }}')">
+<div class="container mx-auto px-4 flex flex-col" x-data="chatComponent('{{ chat.id if chat.id else '' }}', {{ 'true' if not chat.id else 'false' }})">
     <h1 class="text-2xl font-bold py-4">Chat</h1>
 
     <!-- Chat messages container with flex-grow and flex-col-reverse -->
@@ -26,7 +26,7 @@
     <!-- Fixed chat input form at bottom -->
     <div class="py-4">
         <form id="chat-form" @submit.prevent="sendMessage" class="flex w-full gap-2">
-            <input id="msg-input" type="text" name="message" placeholder="Type your message..." autocomplete="off"
+            <input id="msg-input" x-ref="msgInput" type="text" name="message" placeholder="Type your message..." autocomplete="off"
                 class="input input-bordered flex-1" x-model="input" :disabled="loading" />
             <button type="submit" class="btn btn-primary" :disabled="loading || !input.trim()">Send</button>
         </form>
@@ -34,16 +34,34 @@
 </div>
 
 <script>
-function chatComponent(chatId) {
+function chatComponent(initialChatId, needsNewChat) {
     return {
         input: '',
         loading: false,
-        messages: [
-            // Initial messages from backend
-            ...JSON.parse('{{ chat.messages|tojson|safe }}').reverse()
-        ],
-        sendMessage() {
-            if (!this.input.trim()) return;
+        chatId: initialChatId,
+        messages: [],
+        async init() {
+            if (needsNewChat) {
+                // Request a new chat id from the backend
+                try {
+                    const res = await fetch('/api/chat/new');
+                    const data = await res.json();
+                    this.chatId = data.chat_id || data.id || data.chatId;
+                } catch (e) {
+                    this.messages = [{ id: 0, role: 'assistant', content: 'Error: Unable to start a new chat.' }];
+                    return;
+                }
+            }
+            // Load initial messages if available
+            try {
+                const initialMessages = JSON.parse('{{ chat.messages|tojson|safe }}');
+                this.messages = Array.isArray(initialMessages) ? initialMessages.reverse() : [];
+            } catch (e) {
+                this.messages = [];
+            }
+        },
+        async sendMessage() {
+            if (!this.input.trim() || !this.chatId) return;
             const userMsg = {
                 id: Date.now() + Math.random(),
                 role: 'user',
@@ -54,10 +72,11 @@ function chatComponent(chatId) {
             const userInput = this.input;
             this.input = '';
 
-            // Scroll to bottom
+            // Scroll to bottom and refocus input
             this.$nextTick(() => {
                 const chatlist = document.getElementById('chatlist');
                 chatlist.scrollTop = chatlist.scrollHeight;
+                this.$refs.msgInput.focus();
             });
             
             // Add assistant placeholder
@@ -69,7 +88,7 @@ function chatComponent(chatId) {
             this.messages.push(assistantMsg);
             
             // Stream response
-            fetch(`/api/chat/${chatId}`, {
+            fetch(`/api/chat/${this.chatId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ msg: userInput })
@@ -95,9 +114,11 @@ function chatComponent(chatId) {
                     }
                 }
                 this.loading = false;
+                this.$refs.msgInput.focus();
             }).catch(() => {
                 assistantMsg.content += '\n[Error receiving response]';
                 this.loading = false;
+                this.$refs.msgInput.focus();
             });
         }
     }

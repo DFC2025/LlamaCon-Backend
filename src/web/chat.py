@@ -14,9 +14,8 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 
 @router.get("/new", response_class=HTMLResponse)
-async def new_chat(request: Request, supabase_client: DBClientDep):
-    response = supabase_client.table("chat_history").insert({}).execute()
-    chat = {"id": response.data[0]["id"], "messages": []}
+async def new_chat(request: Request):
+    chat = {"id": None, "messages": []}
     return templates.TemplateResponse("chat.html", {"request": request, "chat": chat})
 
 

@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request
 from supabase import Client
 
-from src.core.db_client import supabase_client
+from src.core.client import supabase_client
 
 
 def get_db():

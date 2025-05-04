@@ -30,6 +30,9 @@ image = (
         {
             "SUPABASE_URL": os.getenv("SUPABASE_URL"),
             "SUPABASE_ANON_KEY": os.getenv("SUPABASE_ANON_KEY"),
+            "LLAMA_API_KEY": os.getenv("LLAMA_API_KEY"),
+            "LLAMA_BASE_URL": os.getenv("LLAMA_BASE_URL"),
+            "LLM_MODEL": os.getenv("LLM_MODEL"),
         }
     )
 )

@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     debug: bool = False
     SUPABASE_URL: str = os.getenv("SUPABASE_URL")
     SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY")
+    LLAMA_API_KEY: str = os.getenv("LLAMA_API_KEY")
+    LLAMA_BASE_URL: str = os.getenv("LLAMA_BASE_URL")
+    LLM_MODEL: str = os.getenv("LLM_MODEL")
 
 
 @lru_cache()

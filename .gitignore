@@ -37,3 +37,4 @@ build/
 *.hypothesis/
 *.pytest_cache/
 *.ipynb_checkpoints/
+*.ipynb

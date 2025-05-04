@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+
+{% block content %}
+
+    <!-- Removed hx-boost="true" from here as it's usually better on body or a higher-level container -->
+    <div id="input_container"
+        hx-get="/"
+        hx-target="#bookmarks"
+        hx-select="#bookmarks"
+        hx-push-url="true"
+        hx-include="this"
+        hx-trigger="keyup changed delay:300ms input[name=search], change input[type=checkbox]"
+    >
+        <!-- Search Bar -->
+        <label class="input w-full mt-4">
+            <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <g stroke-linejoin="round" stroke-linecap="round" stroke-width="2.5" fill="none" stroke="currentColor">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.3-4.3"></path>
+                </g>
+            </svg>
+            <input x-data
+                type="search"
+                name="search"
+                class="grow"
+                placeholder="Search"
+                x-ref="search"
+                @keydown.window.prevent.meta.k="$refs.search.focus()"
+                @keydown.window.prevent.ctrl.k="$refs.search.focus()"
+            />
+            <kbd class="kbd kbd-sm">⌘</kbd>
+            <kbd class="kbd kbd-sm">K</kbd>
+        </label>
+
+        <!-- Filter Options -->
+        <div class="flex flex-row mt-2">
+            <div class="text font-bold whitespace-nowrap mr-2">Filter by:</div>
+            <div class="flex flex-wrap gap-2 justify-start">
+            {% for tag in tags %}
+            <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox"
+                   name="{{ tag|lower }}"
+                   class="checkbox checkbox-primary"
+                   />
+            <span>{{ tag }}</span>
+            </label>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Separator -->
+<div class="divider"></div>
+
+<!-- Bookmarks Table -->
+<div id="bookmarks" class="overflow-x-auto">
+    <table class="table">
+        <!-- head -->
+        <thead>
+            <tr>
+                <th>
+                    <label>
+                        <input type="checkbox" class="checkbox" />
+                    </label>
+                </th>
+                <th>Title</th>
+                <th>Tags</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- row 1 -->
+            {% for item in items %}
+            <tr>
+                <th>
+                    <label>
+                        <input type="checkbox" class="checkbox" />
+                    </label>
+                </th>
+                <td>
+                    <div class="flex items-center gap-3">
+                        <div class="avatar">
+                            <div class="mask mask-squircle h-12 w-12">
+                                <img src={{ item.image }} alt="Avatar Tailwind CSS Component" />
+                            </div>
+                        </div>
+                        <div>
+                            <a class="font-bold" href="/item/{{ item.content_id }}">{{ item.title }}</a>
+                            <div class="text-sm opacity-50">{{ item.siteName }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    {% for tag in item.tags %}
+                    <span class="badge badge-neutral badge-outline my-1">{{ tag }}</span>
+                    {% endfor %}
+                </td>
+                <td>
+                    {% if item.status == "Active" %}
+                    <div class="badge badge-success">{{ item.status }}</div>
+                    {% elif item.status == "Processing" %}
+                    <div class="badge badge-info">{{ item.status }}</div>
+                    {% else %}
+                    <div class="badge badge-warning">{{ item.status }}</div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

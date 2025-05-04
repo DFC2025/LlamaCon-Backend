@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div x-data="searchComponent()" class="relative w-full mt-4">
+    <!-- Search input -->
+    <input
+        type="text"
+        class="input input-bordered w-full font-mono px-3"
+        placeholder="Search (e.g. is:unread tag:active)..."
+        x-model="query"
+        @input.debounce.300ms="parseMarkers(); const form = $el.closest('form'); if(form) htmx.trigger(form, 'input')"
+        x-ref="searchInput"
+        autocomplete="off"
+    >
+    <!-- Suggestions Dropdown -->
+    <div x-show="showSuggestions"
+         x-transition
+         class="absolute z-20 w-full mt-1 bg-base-100 border border-base-200 rounded-box shadow-lg"
+         @click.outside="showSuggestions = false"
+    >
+        <template x-for="suggestion in filteredSuggestions" :key="suggestion.value">
+            <div @click="applySuggestion(suggestion)"
+                 class="p-2 cursor-pointer hover:bg-base-200"
+                 x-text="suggestion.label"></div>
+        </template>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('searchComponent', () => ({
+            query: '',
+            activeMarker: null,
+            showSuggestions: false,
+            markers: {
+                'is': ['unread', 'starred', 'archived'],
+                'tag': ['active', 'urgent', 'backlog'],
+                'format': ['png', 'jpg', 'pdf']
+            },
+            get filteredSuggestions() {
+                if (!this.activeMarker || !this.markers[this.activeMarker.key]) {
+                    return [];
+                }
+                const suggestions = this.markers[this.activeMarker.key].map(value => ({
+                    label: `${this.activeMarker.key}:${value}`,
+                    value: `${this.activeMarker.key}:${value}`
+                }));
+                
+                if (this.activeMarker.value) {
+                    return suggestions.filter(suggestion => 
+                        suggestion.label.toLowerCase().includes(this.activeMarker.value.toLowerCase())
+                    );
+                }
+                return suggestions;
+            },
+            applySuggestion(suggestion) {
+                const parts = [...this.query.split(' ')];
+                parts[this.activeMarker.position] = suggestion.value;
+                this.query = parts.join(' ') + ' ';
+                this.showSuggestions = false;
+                
+                this.$nextTick(() => {
+                    this.$refs.searchInput.focus();
+                    const len = this.$refs.searchInput.value.length;
+                    this.$refs.searchInput.setSelectionRange(len, len);
+                });
+            },
+            parseMarkers() {
+                const parts = this.query.split(' ');
+                const lastPart = parts[parts.length - 1];
+                if (lastPart.includes(':')) {
+                    const [key, value = ''] = lastPart.split(':');
+                    if (this.markers[key]) {
+                        this.activeMarker = { key, value, position: parts.length - 1 };
+                        this.showSuggestions = true;
+                        return;
+                    }
+                }
+                this.activeMarker = null;
+                this.showSuggestions = false;
+            }
+        }));
+    });
+</script>
+
+<style>
+    /* Highlight styling */
+    ::highlight(x-highlight) {
+        background-color: #fde68a;
+        color: #1c1917;
+    }
+
+    mark.x-highlight {
+        background-color: #fde68a;
+        color: #1c1917;
+    }
+</style>
+
+<div class="container mx-auto p-4">
+    <h1 class="text-3xl font-bold mb-4">{{ item.title }}</h1>
+    <div class="flex items-center space-x-4 mb-6">
+        <button class="btn btn-primary">Listen</button>
+        <div class="dropdown">
+            <button tabindex="0" class="btn btn-secondary dropdown-toggle">Translate to</button>
+            <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
+                <li><a>English</a></li>
+                <li><a>Spanish</a></li>
+                <li><a>French</a></li>
+                <li><a>German</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="prose">
+        <p>
+            {{ item.description  }}
+        </p>
+    </div>
+</div>
+{% endblock %}

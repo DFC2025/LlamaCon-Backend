@@ -1,16 +1,22 @@
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
+from openai import OpenAI
 from supabase import Client
 
-from src.core.client import supabase_client
+from src.core.client import openai_client, supabase_client
 
 
-def get_db():
+def get_supabase_client():
     return supabase_client
 
 
-DBClientDep = Annotated[Client, Depends(get_db)]
+def get_openai_client():
+    return openai_client
+
+
+DBClientDep = Annotated[Client, Depends(get_supabase_client)]
+OpenAIDep = Annotated[OpenAI, Depends(get_openai_client)]
 
 
 async def get_current_user(request: Request, client: DBClientDep) -> dict:

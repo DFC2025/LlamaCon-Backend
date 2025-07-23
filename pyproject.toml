@@ -12,3 +12,8 @@ dependencies = [
     "supabase>=2.15.1",
     "tomli>=2.2.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pyzed>=1.3.0",
+]
